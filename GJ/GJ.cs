@@ -41,6 +41,8 @@ namespace Proyectos.GJ
             EstilizarBoton(btnCrear, Color.FromArgb(59, 130, 246), Color.White);
             EstilizarBoton(btnGauss, Color.FromArgb(16, 185, 129), Color.White);
             EstilizarBoton(btnGaussJordan, Color.FromArgb(139, 92, 246), Color.White);
+            EstilizarBoton(btnSeidel, Color.FromArgb(234, 179, 8), Color.White); // ámbar
+
 
             // Estilo para el checkbox
             chkPivot.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular);
