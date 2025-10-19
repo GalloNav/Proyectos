@@ -537,8 +537,34 @@ namespace Proyectos.GJ
                 }
                 // Diagonal dominante estricta
                 Ab[i, i] = rowsum + rnd.Next(1, 6);
-                // Término independiente
+                // termino independiente
                 Ab[i, n] = rnd.Next(min * 2, max * 2 + 1);
+            }
+            return Ab;
+        }
+
+        // [A|b] aleatoria eqs×(vars+1). Si eqs==vars refuerza dominancia diagonal.
+        public static double[,] RandomAugmented(int eqs, int vars, int min = -5, int max = 5, bool forceDiagDom = true)
+        {
+            if (eqs < 1 || vars < 1) throw new ArgumentException("Tamaños inválidos.");
+            var rnd = new Random();
+            var Ab = new double[eqs, vars + 1];
+
+            for (int i = 0; i < eqs; i++)
+            {
+                for (int j = 0; j < vars; j++)
+                    Ab[i, j] = rnd.Next(min, max + 1);
+                Ab[i, vars] = rnd.Next(min * 2, max * 2 + 1);
+            }
+
+            if (forceDiagDom && eqs == vars)
+            {
+                for (int i = 0; i < eqs; i++)
+                {
+                    double rowsum = 0;
+                    for (int j = 0; j < vars; j++) if (j != i) rowsum += Math.Abs(Ab[i, j]);
+                    if (Math.Abs(Ab[i, i]) <= rowsum) Ab[i, i] = rowsum + rnd.Next(1, 6);
+                }
             }
             return Ab;
         }

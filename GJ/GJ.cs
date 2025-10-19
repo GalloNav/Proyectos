@@ -139,36 +139,48 @@ namespace Proyectos.GJ
             int ecuaciones = (int)nudEcuaciones.Value;
             int variables = (int)nudVariables.Value;
 
+            // Configuración del grid
             grid.Enabled = true;
             grid.ReadOnly = false;
             grid.AllowUserToAddRows = false;
             grid.AllowUserToDeleteRows = false;
             grid.SelectionMode = DataGridViewSelectionMode.CellSelect;
             grid.EditMode = DataGridViewEditMode.EditOnKeystrokeOrF2;
-            grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells;
 
             grid.Columns.Clear();
             grid.Rows.Clear();
 
-            // columnas a1...aN + b
+            // Columnas a1..aN + b
             for (int j = 0; j < variables; j++)
                 grid.Columns.Add($"c{j}", $"a{j + 1}");
             grid.Columns.Add($"c{variables}", "b");
 
+            // Filas
             grid.Rows.Add(ecuaciones);
             for (int i = 0; i < ecuaciones; i++)
                 grid.Rows[i].HeaderCell.Value = $"Eq {i + 1}";
-
             grid.RowHeadersWidth = 60;
-            grid.CurrentCell = grid[0, 0];
-            grid.BeginEdit(true);
-            txtSol.Clear();
 
-            if (ecuaciones == variables && (ecuaciones == 30 || ecuaciones == 40))
+            // Llenado aleatorio SIEMPRE (sea cuadrada o no)
+            var Ab = LinearAlgebra.RandomAugmented(ecuaciones, variables, -5, 5, forceDiagDom: true);
+            LlenarGridDesdeMatriz(Ab);   // usa tu helper
+
+            // Ajustes de rendimiento/anchos
+            if (ecuaciones >= 30 || variables >= 30)
             {
-                var Ab = LinearAlgebra.RandomDiagonallyDominantAugmented(ecuaciones, -5, 5);
-                LlenarGridDesdeMatriz(Ab);
+                grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+                for (int j = 0; j < grid.ColumnCount; j++) grid.Columns[j].Width = 55;
             }
+            else
+            {
+                grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells;
+            }
+
+            // Foco en primera celda
+            if (grid.RowCount > 0 && grid.ColumnCount > 0)
+                grid.CurrentCell = grid[0, 0];
+
+            txtSol.Clear();
         }
 
         private void LlenarGridDesdeMatriz(double[,] Ab)
@@ -219,8 +231,8 @@ namespace Proyectos.GJ
         {
             txtSol.ForeColor = Color.FromArgb(220, 38, 38);
             txtSol.Text = $"╔══════════════════════════════════════╗\n" +
-                         $"║   ERROR                              ║\n" +
-                         $"╚══════════════════════════════════════╝\n\n" +
+                          $"║   ERROR                              ║\n" +
+                          $"╚══════════════════════════════════════╝\n\n" +
                          $"✗ {mensaje}";
 
             // Restaurar color después de 3 segundos
