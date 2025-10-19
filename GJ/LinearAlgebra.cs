@@ -30,12 +30,21 @@ namespace Proyectos.GJ
                 sb.Append("  ");
                 for (int j = 0; j < m; j++)
                 {
-                    if (j == m - 1) sb.Append("│ "); // separa [A|b]
+                    if (j == m - 1) sb.Append("│ ");
                     sb.Append(M[i, j].ToString("0.####", CultureInfo.InvariantCulture));
                     sb.Append(j == m - 1 ? "" : "\t");
                 }
                 sb.AppendLine();
             }
+            return sb.ToString();
+        }
+
+        private static string FormatVector(double[] x, string title)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine(title);
+            for (int i = 0; i < x.Length; i++)
+                sb.AppendLine($"  x{i + 1} = {x[i]:G10}");
             return sb.ToString();
         }
 
@@ -204,6 +213,82 @@ namespace Proyectos.GJ
         }
 
         /// <summary>
+        /// Gauss–Seidel con registro detallado del procedimiento.
+        /// </summary>
+        public static (double[] x, int iters, double resInf, string log) GaussSeidelWithSteps(
+            double[,] Ab, double tol = 1e-8, int maxIter = 10000, double[] x0 = null, double w = 1.0)
+        {
+            int n = Ab.GetLength(0);
+            if (Ab.GetLength(1) != n + 1) throw new ArgumentException("La matriz aumentada debe ser n×(n+1).");
+            if (w <= 0 || w > 2) throw new ArgumentOutOfRangeException(nameof(w), "w debe estar en (0, 2].");
+
+            var log = new StringBuilder();
+            log.AppendLine("╔══════════════════════════════════════╗");
+            log.AppendLine("║     MÉTODO DE GAUSS–SEIDEL (pasos)   ║");
+            log.AppendLine("╚══════════════════════════════════════╝");
+            log.AppendLine(FormatMatrix(Ab, "Matriz inicial [A|b]:"));
+
+            var x = x0 != null ? (double[])x0.Clone() : new double[n];
+            log.Append(FormatVector(x, "Vector inicial x⁽⁰⁾:"));
+
+            double resInf = double.PositiveInfinity;
+
+            for (int k = 0; k < maxIter; k++)
+            {
+                log.AppendLine();
+                log.AppendLine($"— Iteración {k + 1}");
+
+                double maxDelta = 0.0;
+
+                for (int i = 0; i < n; i++)
+                {
+                    double aii = Ab[i, i];
+                    if (Math.Abs(aii) < 1e-14)
+                        throw new ArithmeticException($"A[{i + 1},{i + 1}]≈0. Reordena filas o usa pivoteo.");
+
+                    double s = Ab[i, n];
+                    for (int j = 0; j < n; j++)
+                        if (j != i) s -= Ab[i, j] * x[j];
+
+                    double xi_old = x[i];
+                    double xi_new = (1 - w) * xi_old + w * (s / aii);
+
+                    x[i] = xi_new;
+                    maxDelta = Math.Max(maxDelta, Math.Abs(xi_new - xi_old));
+
+                    log.AppendLine($"   i={i + 1}: s = b{i + 1} − Σ(j≠{i + 1}) a[{i + 1},j]·xj = {s:G10}");
+                    if (Math.Abs(w - 1.0) < 1e-12)
+                        log.AppendLine($"         x{i + 1}⁽{k + 1}⁾ = s / a[{i + 1},{i + 1}] = {xi_new:G10}");
+                    else
+                        log.AppendLine($"         x{i + 1}⁽{k + 1}⁾ = (1−w)·{xi_old:G10} + w·(s/a[{i + 1},{i + 1}]) = {xi_new:G10}");
+                }
+
+                // residuo infinito: max_i |(Ax - b)_i|
+                resInf = 0.0;
+                for (int i = 0; i < n; i++)
+                {
+                    double Ax = 0.0;
+                    for (int j = 0; j < n; j++) Ax += Ab[i, j] * x[j];
+                    resInf = Math.Max(resInf, Math.Abs(Ax - Ab[i, n]));
+                }
+
+                log.Append(FormatVector(x, "   x actualizado:"));
+                log.AppendLine($"   Δmax = {maxDelta:E3},  ‖Ax−b‖∞ = {resInf:E3}");
+
+                if (resInf <= tol || maxDelta <= tol)
+                {
+                    log.AppendLine();
+                    log.AppendLine($"Convergencia alcanzada en {k + 1} iteraciones (tol = {tol:G}).");
+                    return (x, k + 1, resInf, log.ToString());
+                }
+            }
+
+            log.AppendLine();
+            log.AppendLine($"No convergió en {maxIter} iteraciones. Último ‖Ax−b‖∞ = {resInf:E3}");
+            return (x, maxIter, resInf, log.ToString());
+        }
+
+        /// <summary>
         /// Eliminación de Gauss con pivoteo parcial opcional.
         /// Recibe matriz aumentada [A|b] de tamaño n x (n+1).
         /// Devuelve vector solución x (long n).
@@ -367,7 +452,7 @@ namespace Proyectos.GJ
         }
 
         public static (double[,] RREF, int rankA, int rankAb, List<int> pivots) RrefGeneral(
-    double[,] Ab, bool partialPivot = true, double eps = 1e-12)
+            double[,] Ab, bool partialPivot = true, double eps = 1e-12)
         {
             int rows = Ab.GetLength(0);
             int cols = Ab.GetLength(1);
@@ -430,6 +515,80 @@ namespace Proyectos.GJ
             }
 
             return (M, rankA, rankAb, pivots);
+        }
+
+        // --- Generador aleatorio con dominancia diagonal estricta (converge bien) ---
+        public static double[,] RandomDiagonallyDominantAugmented(int n, int min = -5, int max = 5)
+        {
+            if (n < 1) 
+                throw new ArgumentException("n debe ser > 0");
+            var rnd = new Random();
+            var Ab = new double[n, n + 1];
+
+            for (int i = 0; i < n; i++)
+            {
+                double rowsum = 0.0;
+                for (int j = 0; j < n; j++)
+                {
+                    if (i == j) continue;
+                    int v = rnd.Next(min, max + 1);
+                    Ab[i, j] = v;
+                    rowsum += Math.Abs(v);
+                }
+                // Diagonal dominante estricta
+                Ab[i, i] = rowsum + rnd.Next(1, 6);
+                // Término independiente
+                Ab[i, n] = rnd.Next(min * 2, max * 2 + 1);
+            }
+            return Ab;
+        }
+
+        // --- Gauss–Seidel (con relajación opcional w) ---
+        // Ab: matriz aumentada n×(n+1); x0 opcional; tol y maxIter configurables.
+        public static (double[] x, int iters, double resMax) GaussSeidel(
+            double[,] Ab, double tol = 1e-8, int maxIter = 5000, double[] x0 = null, double w = 1.0)
+        {
+            int n = Ab.GetLength(0);
+            if (Ab.GetLength(1) != n + 1) throw new ArgumentException("La matriz aumentada debe ser n×(n+1).");
+            if (w <= 0 || w > 2) throw new ArgumentOutOfRangeException(nameof(w), "w debe estar en (0, 2].");
+
+            var x = x0 != null ? (double[])x0.Clone() : new double[n];
+
+            for (int k = 0; k < maxIter; k++)
+            {
+                double maxDiff = 0.0;
+
+                for (int i = 0; i < n; i++)
+                {
+                    double aii = Ab[i, i];
+                    if (Math.Abs(aii) < 1e-14)
+                        throw new ArithmeticException($"A[{i + 1},{i + 1}]≈0. Reordena filas o usa pivoteo.");
+
+                    double s = Ab[i, n];
+                    // usa x actualizada (j<i) y anterior (j>i) — propio de GS
+                    for (int j = 0; j < n; j++)
+                        if (j != i) s -= Ab[i, j] * x[j];
+
+                    double xi = (1 - w) * x[i] + w * (s / aii);
+                    maxDiff = Math.Max(maxDiff, Math.Abs(xi - x[i]));
+                    x[i] = xi;
+                }
+
+                // residuo infinito: max_i |(Ax - b)_i|
+                double rInf = 0.0;
+                for (int i = 0; i < n; i++)
+                {
+                    double Ax = 0.0;
+                    for (int j = 0; j < n; j++) Ax += Ab[i, j] * x[j];
+                    rInf = Math.Max(rInf, Math.Abs(Ax - Ab[i, n]));
+                }
+
+                if (rInf <= tol || maxDiff <= tol)
+                    return (x, k + 1, rInf);
+            }
+
+            // No convergió dentro de maxIter
+            return (x, maxIter, double.NaN);
         }
 
     }

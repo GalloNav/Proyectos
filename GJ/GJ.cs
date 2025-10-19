@@ -19,11 +19,11 @@ namespace Proyectos.GJ
             ConfigurarEstiloFormulario();
 
             nudEcuaciones.Minimum = 1;
-            nudEcuaciones.Maximum = 6;
+            nudEcuaciones.Maximum = 40;
             nudEcuaciones.Value = 3;
 
             nudVariables.Minimum = 1;
-            nudVariables.Maximum = 6;
+            nudVariables.Maximum = 40;
             nudVariables.Value = 3;
         }
 
@@ -161,7 +161,33 @@ namespace Proyectos.GJ
             grid.CurrentCell = grid[0, 0];
             grid.BeginEdit(true);
             txtSol.Clear();
+
+            if (ecuaciones == variables && (ecuaciones == 30 || ecuaciones == 40))
+            {
+                var Ab = LinearAlgebra.RandomDiagonallyDominantAugmented(ecuaciones, -5, 5);
+                LlenarGridDesdeMatriz(Ab);
+            }
         }
+
+        private void LlenarGridDesdeMatriz(double[,] Ab)
+        {
+            int n = Ab.GetLength(0), m = Ab.GetLength(1);
+            if (grid.RowCount != n || grid.ColumnCount != m) return;
+
+            // Para rendimiento con 30–40, desactiva autosize temporalmente
+            var old = grid.AutoSizeColumnsMode;
+            grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+
+            for (int i = 0; i < n; i++)
+                for (int j = 0; j < m; j++)
+                    grid.Rows[i].Cells[j].Value = Ab[i, j].ToString("0.####");
+
+            // columnas estrechas para 40×40
+            for (int j = 0; j < m; j++) grid.Columns[j].Width = 55;
+
+            grid.AutoSizeColumnsMode = old;
+        }
+
 
         private void btnGauss_Click(object sender, EventArgs e)
         {
@@ -228,6 +254,55 @@ namespace Proyectos.GJ
                 txtSol.Text = log; // ← procedimiento completo
             }
             catch (Exception ex) { MostrarError(ex.Message); }
+        }
+
+        private void label2_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private static double TryParseOrDefault(string s, double def)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return def;
+            return double.TryParse(s, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var v)
+                || double.TryParse(s, out v) ? v : def;
+        }
+
+
+        private void btnSeidel_Click(object sender, EventArgs e)
+        {
+            txtSol.Clear();
+            try
+            {
+                var Ab = LeerMatrizAumentada(out int nEqs, out int nVars);
+                if (nEqs != nVars)
+                {
+                    MostrarError("Gauss–Seidel requiere matriz cuadrada (mismo numero de ecuaciones y variables).");
+                    return;
+                }
+
+                double tol = TryParseOrDefault(txtTol?.Text, 1e-8);
+                int maxIter = (int)Math.Max(1, TryParseOrDefault(txtMaxIter?.Text, 10000));
+                double w = TryParseOrDefault(txtW?.Text, 1.0);
+
+                var (x, iters, rInf, log) = LinearAlgebra.GaussSeidelWithSteps(Ab, tol, maxIter, null, w);
+
+                // Encabezado + log completo del procedimiento
+                var sb = new StringBuilder();
+                sb.AppendLine($"Parámetros: n={nEqs}, tol={tol:G}, maxIter={maxIter}, w={w:G}");
+                sb.AppendLine($"Resultado: iteraciones={iters}, ‖Ax−b‖∞={(double.IsNaN(rInf) ? double.NaN : rInf):E3}");
+                sb.AppendLine();
+                sb.Append(log);
+
+                txtSol.ForeColor = Color.FromArgb(31, 41, 55);
+                txtSol.Text = sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                MostrarError(ex.Message);
+            }
+
         }
     }
 }
