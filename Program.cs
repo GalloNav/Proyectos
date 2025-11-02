@@ -16,7 +16,7 @@ namespace Proyectos
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new Proyectos.GJ.GJ());
+            Application.Run(new Proyectos.RLSRPM.MR());
         }
     }
 }
